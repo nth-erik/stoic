@@ -63,7 +63,11 @@ export class StoicObject {
   }
 
   toString() {
-    return '[object StoicObject]';
+    return Object.prototype.toString.call(this);
+  }
+
+  get [Symbol.toStringTag]() {
+    return 'StoicObject';
   }
 }
 
