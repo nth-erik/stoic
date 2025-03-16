@@ -1,0 +1,27 @@
+{
+  "name": "@nth-erik/stoic",
+  "version": "1.0.0",
+  "description": "Stoic is a simple JavaScript library for instantiating immutable reference type data for use as enumerables and schemata.",
+  "type": "module",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/nth-erik/stoic.git"
+  },
+  "keywords": [
+    "immutable",
+    "javascript",
+    "static object",
+    "stoic",
+    "vanilla js"
+  ],
+  "author": "Erik Achilles Németh",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/nth-erik/stoic/issues"
+  },
+  "homepage": "https://github.com/nth-erik/stoic#readme"
+}
