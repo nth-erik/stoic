@@ -1,230 +1,252 @@
-function isPlainObject(value) {
-  return (
-    value !== null &&
-    typeof value === 'object' &&
-    Object.getPrototypeOf(value) === Object.prototype
-  );
-}
+'use strict';
 
-/**
- * Wraps a plain object or array in an immutable structure.
- * Dispatches to StoicObject or StoicArray depending on the input type.
- *
- * @class
- * @param {*} source - The input to be wrapped.
- * @returns {StoicObject|StoicArray|*} A deeply frozen version of the input, or the original value if unsupported.
- */
-export class Stoic {
-  constructor(source) {
-    if (Array.isArray(source)) return new StoicArray(source);
-    if (isPlainObject(source)) return new StoicObject(source);
+export const Stoic = Object.create(null);
 
-    return source;
-  }
-}
+Stoic.isPlainObject = (value) =>
+  value !== null &&
+  typeof value === 'object' &&
+  Object.getPrototypeOf(value) === Object.prototype;
 
-/**
- * Immutable, deeply frozen wrapper for plain objects.
- * Converts nested structures using Stoic.
- * Supports common object methods with immutable returns.
- *
- * @class
- * @param {Object} source - A non-array, plain object.
- * @throws {TypeError} If source is not a plain object.
- */
-export class StoicObject {
-  constructor(source) {
-    if (source instanceof StoicObject) return source;
-    if (Array.isArray(source) || !isPlainObject(source)) {
-      throw new TypeError(
-        'StoicObject expects a non-array object. Use Stoic to handle ambiguous data types.',
-      );
-    }
+Stoic.create = (sourceValue) => {
+  if (Array.isArray(sourceValue)) return new StoicArray(sourceValue);
+  if (Stoic.isPlainObject(sourceValue)) return new StoicObject(sourceValue);
+  return sourceValue;
+};
 
-    const instance = Object.create(StoicObject.prototype);
+// StoicObject
 
-    for (const [key, value] of Object.entries(source)) {
-      Object.defineProperty(instance, key, {
-        value: new Stoic(value),
-        writable: false,
-        enumerable: true,
-        configurable: false,
-      });
-    }
+export function StoicObject(source) {
+  if (source instanceof StoicObject) return source;
 
-    Object.setPrototypeOf(instance, Stoic);
-    Object.freeze(instance);
-
-    return instance;
+  if (Array.isArray(source) || !Stoic.isPlainObject(source)) {
+    throw new TypeError('StoicObject expects a plain object.');
   }
 
-  hasOwnProperty(key) {
+  const instance = Object.create(StoicObject.prototype);
+
+  for (const [key, value] of Object.entries(source)) {
+    Object.defineProperty(instance, key, {
+      value: Stoic.create(value),
+      writable: false,
+      enumerable: true,
+      configurable: false,
+    });
+  }
+
+  Object.freeze(instance);
+
+  return instance;
+}
+
+StoicObject.prototype = Object.create(Stoic);
+
+Object.defineProperty(StoicObject.prototype, 'constructor', {
+  value: StoicObject,
+});
+
+Object.defineProperty(StoicObject.prototype, 'hasOwnProperty', {
+  value: function (key) {
     return Object.prototype.hasOwnProperty.call(this, key);
-  }
+  },
+});
 
-  toString() {
+Object.defineProperty(StoicObject.prototype, 'toString', {
+  value: function () {
     return Object.prototype.toString.call(this);
+  },
+});
+
+Object.defineProperty(StoicObject.prototype, Symbol.toStringTag, {
+  value: 'StoicObject',
+});
+
+Object.freeze(StoicObject.prototype);
+Object.freeze(StoicObject);
+
+// StoicArray
+
+export function StoicArray(source) {
+  if (source instanceof StoicArray) return source;
+
+  if (!Array.isArray(source)) {
+    throw new TypeError('StoicArray expects an array.');
   }
 
-  get [Symbol.toStringTag]() {
-    return 'StoicObject';
+  const instance = Object.create(StoicArray.prototype);
+
+  for (let i = 0; i < source.length; i++) {
+    Object.defineProperty(instance, i, {
+      value: Stoic.create(source[i]),
+    });
   }
+
+  Object.defineProperty(instance, 'length', {
+    value: source.length,
+  });
+
+  Object.defineProperty(instance, Symbol.iterator, {
+    value: function* () {
+      for (let i = 0; i < this.length; i++) {
+        yield this[i];
+      }
+    },
+  });
+
+  Object.freeze(instance);
+
+  return instance;
 }
 
-/**
- * Immutable, deeply frozen wrapper for arrays.
- * Supports common array methods with immutable returns.
- *
- * @class
- * @param {Array} source - An array to wrap.
- * @throws {TypeError} If source is not an array.
- */
-export class StoicArray {
-  constructor(source) {
-    if (source instanceof StoicArray) return source;
-    if (!Array.isArray(source)) {
-      throw new TypeError(
-        'StoicArray expects an array. Use Stoic to handle ambiguous data types.',
-      );
-    }
-
-    const instance = Object.create(StoicArray.prototype);
-
-    for (let i = 0; i < source.length; i++) {
-      Object.defineProperty(instance, i, {
-        value: new Stoic(source[i]),
-        writable: false,
-        enumerable: true,
-        configurable: false,
-      });
-    }
-
-    Object.defineProperty(instance, 'length', {
-      value: source.length,
-      writable: false,
-      enumerable: false,
-      configurable: false,
-    });
-
-    Object.defineProperty(instance, Symbol.iterator, {
-      value: function* () {
-        for (let i = 0; i < this.length; i++) {
-          yield instance[i];
-        }
-      },
-      writable: false,
-      enumerable: false,
-      configurable: false,
-    });
-
-    Object.setPrototypeOf(instance, Stoic);
-    Object.freeze(instance);
-
-    return instance;
-  }
-
-  // Methods
-
-  at(index) {
+Object.defineProperty(StoicArray.prototype, 'at', {
+  value: function (index) {
     return Array.prototype.at.call(this, index);
-  }
+  },
+});
 
-  concat(...items) {
-    return new StoicArray(Array.prototype.concat.call([], ...items));
-  }
+Object.defineProperty(StoicArray.prototype, 'concat', {
+  value: function (...items) {
+    return new StoicArray(Array.prototype.concat.call([...this], ...items));
+  },
+});
 
-  every(callbackFn, thisArg) {
+Object.defineProperty(StoicArray.prototype, 'every', {
+  value: function (callbackFn, thisArg) {
     return Array.prototype.every.call(this, callbackFn, thisArg);
-  }
+  },
+});
 
-  filter(callbackFn, thisArg) {
+Object.defineProperty(StoicArray.prototype, 'filter', {
+  value: function (callbackFn, thisArg) {
     return new StoicArray(
       Array.prototype.filter.call(this, callbackFn, thisArg),
     );
-  }
+  },
+});
 
-  find(callbackFn, thisArg) {
+Object.defineProperty(StoicArray.prototype, 'find', {
+  value: function (callbackFn, thisArg) {
     return Array.prototype.find.call(this, callbackFn, thisArg);
-  }
+  },
+});
 
-  findIndex(callbackFn, thisArg) {
+Object.defineProperty(StoicArray.prototype, 'findIndex', {
+  value: function (callbackFn, thisArg) {
     return Array.prototype.findIndex.call(this, callbackFn, thisArg);
-  }
+  },
+});
 
-  findLast(callbackFn, thisArg) {
+Object.defineProperty(StoicArray.prototype, 'findLast', {
+  value: function (callbackFn, thisArg) {
     return Array.prototype.findLast.call(this, callbackFn, thisArg);
-  }
+  },
+});
 
-  forEach(callbackFn, thisArg) {
+Object.defineProperty(StoicArray.prototype, 'forEach', {
+  value: function (callbackFn, thisArg) {
     Array.prototype.forEach.call(this, callbackFn, thisArg);
-  }
+  },
+});
 
-  includes(searchElement, fromIndex) {
+Object.defineProperty(StoicArray.prototype, 'includes', {
+  value: function (searchElement, fromIndex) {
     return Array.prototype.includes.call(this, searchElement, fromIndex);
-  }
+  },
+});
 
-  indexOf(searchElement, fromIndex) {
+Object.defineProperty(StoicArray.prototype, 'indexOf', {
+  value: function (searchElement, fromIndex) {
     return Array.prototype.indexOf.call(this, searchElement, fromIndex);
-  }
+  },
+});
 
-  join(separator) {
+Object.defineProperty(StoicArray.prototype, 'join', {
+  value: function (separator) {
     return Array.prototype.join.call(this, separator);
-  }
+  },
+});
 
-  lastIndexOf(searchElement, fromIndex) {
+Object.defineProperty(StoicArray.prototype, 'lastIndexOf', {
+  value: function (searchElement, fromIndex) {
     return Array.prototype.lastIndexOf.call(this, searchElement, fromIndex);
-  }
+  },
+});
 
-  map(callbackFn, thisArg) {
+Object.defineProperty(StoicArray.prototype, 'map', {
+  value: function (callbackFn, thisArg) {
     return new StoicArray(Array.prototype.map.call(this, callbackFn, thisArg));
-  }
+  },
+});
 
-  reduce(callbackFn, initialValue) {
+Object.defineProperty(StoicArray.prototype, 'reduce', {
+  value: function (callbackFn, initialValue) {
     return Array.prototype.reduce.call(this, callbackFn, initialValue);
-  }
+  },
+});
 
-  reduceRight(callbackFn, initialValue) {
+Object.defineProperty(StoicArray.prototype, 'reduceRight', {
+  value: function (callbackFn, initialValue) {
     return Array.prototype.reduceRight.call(this, callbackFn, initialValue);
-  }
+  },
+});
 
-  slice(start, end) {
+Object.defineProperty(StoicArray.prototype, 'slice', {
+  value: function (start, end) {
     return new StoicArray(Array.prototype.slice.call(this, start, end));
-  }
+  },
+});
 
-  some(callbackFn, thisArg) {
+Object.defineProperty(StoicArray.prototype, 'some', {
+  value: function (callbackFn, thisArg) {
     return Array.prototype.some.call(this, callbackFn, thisArg);
-  }
+  },
+});
 
-  toLocaleString() {
+Object.defineProperty(StoicArray.prototype, 'toLocaleString', {
+  value: function () {
     return Array.prototype.toLocaleString.call(this);
-  }
+  },
+});
 
-  toReversed() {
+Object.defineProperty(StoicArray.prototype, 'toReversed', {
+  value: function () {
     return new StoicArray(Array.prototype.toReversed.call(this));
-  }
+  },
+});
 
-  toSorted(compareFn) {
+Object.defineProperty(StoicArray.prototype, 'toSorted', {
+  value: function (compareFn) {
     return new StoicArray(Array.prototype.toSorted.call(this, compareFn));
-  }
+  },
+});
 
-  toSpliced(start, deleteCount, ...items) {
+Object.defineProperty(StoicArray.prototype, 'toSpliced', {
+  value: function (start, deleteCount, ...items) {
     return new StoicArray(
       Array.prototype.toSpliced.call(this, start, deleteCount, ...items),
     );
-  }
+  },
+});
 
-  toString() {
+Object.defineProperty(StoicArray.prototype, 'toString', {
+  value: function () {
     return Array.prototype.toString.call(this);
-  }
+  },
+});
 
-  values() {
+Object.defineProperty(StoicArray.prototype, 'values', {
+  value: function () {
     return Array.prototype.values.call(this);
-  }
+  },
+});
 
-  with(index, value) {
+Object.defineProperty(StoicArray.prototype, 'with', {
+  value: function (index, value) {
     return new StoicArray(Array.prototype.with.call(this, index, value));
-  }
-}
+  },
+});
+
+Object.freeze(StoicArray.prototype);
+Object.freeze(StoicArray);
 
 export default {
   Stoic,
