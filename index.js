@@ -88,11 +88,11 @@ Stoic.create = (sourceValue) => {
  *   }
  * });
  */
-Stoic.delegateStoicMethods = function ({ target, prototype, mapping }) {
+Stoic.delegateStoicMethods = function ({ target, source, mapping }) {
   for (const [method, wrapper] of Object.entries(mapping)) {
     Object.defineProperty(target, method, {
       value: function (...args) {
-        const result = prototype[method].apply(this, args);
+        const result = source[method].apply(this, args);
         return wrapper ? wrapper(result) : result;
       },
     });
@@ -211,13 +211,13 @@ Stoic.delegateStoicMethods({
   target: StoicArray.prototype,
   source: Array.prototype,
   mapping: {
-    at: false,
+    at: (res) => Stoic.create(res),
     concat: (res) => new StoicArray(res),
     every: false,
     filter: (res) => new StoicArray(res),
-    find: false,
-    findIndex: false,
-    findLast: false,
+    find: (res) => Stoic.create(res),
+    findIndex: (res) => Stoic.create(res),
+    findLast: (res) => Stoic.create(res),
     forEach: false,
     includes: false,
     indexOf: false,
@@ -225,7 +225,7 @@ Stoic.delegateStoicMethods({
     lastIndexOf: false,
     map: (res) => new StoicArray(res),
     reduce: false,
-    reduceRight: false,
+    reduceRight: (res) => Stoic.create(res),
     slice: (res) => new StoicArray(res),
     some: false,
     toLocaleString: false,
@@ -233,7 +233,7 @@ Stoic.delegateStoicMethods({
     toSorted: (res) => new StoicArray(res),
     toSpliced: (res) => new StoicArray(res),
     toString: false,
-    values: false,
+    values: (res) => Stoic.create(res),
     with: (res) => new StoicArray(res),
   },
 });
