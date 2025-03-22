@@ -2,7 +2,8 @@
 
 :construction: **This library is still in EARLY DEVELOPMENT with missing features and maybe critical bugs.** :construction:
 
-Stoic is a simple JavaScript library for instantiating immutable reference type data for use as enumerables and schemata.
+A lightweight utility for creating deeply immutable, prototype-free data structures.
+Useful for schema definitions, safe config data, or readonly runtime state.
 
 ---
 
