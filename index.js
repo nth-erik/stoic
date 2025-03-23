@@ -71,13 +71,17 @@ Stoic.create = function (source, _seen = new WeakMap(), _path = []) {
 
   const tag = Object.prototype.toString.call(source);
 
-  if (tag === '[object Date]') {
-    return source.valueOf();
+  if (
+    tag === '[object StoicObject]' ||
+    tag === '[object StoicArray]' ||
+    tag === '[object StoicError]'
+  ) {
+    return source;
   }
 
-  if (tag === '[object RegExp]') {
-    return source.toString();
-  }
+  if (tag === '[object Date]') return source.valueOf();
+
+  if (tag === '[object RegExp]') return source.toString();
 
   if (Array.isArray(source)) {
     const proxy = [];
@@ -87,16 +91,18 @@ Stoic.create = function (source, _seen = new WeakMap(), _path = []) {
     return StoicArray(proxy);
   }
 
+  if (tag === '[object Error]') {
+    console.log('error case', tag);
+    return new StoicError(source);
+  }
+
   if (tag === '[object Object]') {
+    console.log('object case', tag);
     const proxy = Object.create(null);
     for (const key in source) {
       proxy[key] = Stoic.create(source[key], _seen, _path.concat(key));
     }
     return StoicObject(proxy);
-  }
-
-  if (tag === '[object Error]') {
-    return new StoicError(source);
   }
 
   if (
@@ -175,7 +181,10 @@ export function StoicError(error) {
     throw new TypeError('StoicError expects an error.');
   }
 
+  console.log('ERROR CASE INTERNAL');
+
   const instance = Object.create(StoicError.prototype);
+
   Object.defineProperty(instance, 'name', {
     value: 'Stoic' + error.name,
   });
@@ -196,12 +205,14 @@ export function StoicError(error) {
 
   Object.freeze(instance);
 
+  console.log(Object.prototype.toString.call(instance));
+
   return instance;
 }
 
 StoicError.prototype = Object.create(Stoic);
 
-Object.defineProperty(StoicObject.prototype, Symbol.toStringTag, {
+Object.defineProperty(StoicError.prototype, Symbol.toStringTag, {
   value: 'StoicError',
 });
 
