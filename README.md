@@ -114,7 +114,7 @@ Parameters:
 
 Returns:
 
-- A deeply frozen StoicError that is fully frozen and stripped of prototype. The structure retains `name`, `message`, `stack`, and optionally `cause` (if available).
+- A deeply frozen StoicError that is stripped of prototype. The structure retains `name`, `message`, `stack`, and optionally `cause` (if available).
 
 Throws:
 
