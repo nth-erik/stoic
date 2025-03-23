@@ -25,42 +25,92 @@
 export const Stoic = Object.create(null);
 
 /**
- * Checks whether a given value is a plain object
- * (i.e., directly created via `{}` or `new Object()`).
+ * Creates a deeply immutable, prototype-free clone of any supported value.
  *
- * @function
- * @memberof Stoic
- * @param {*} value - The value to test.
- * @returns {boolean} `true` if it's a plain object; otherwise `false`.
+ * This function recursively sanitizes the input:
+ * - Primitives are returned as-is.
+ * - Arrays are wrapped as `StoicArray` instances.
+ * - Plain objects become `StoicObject` instances.
+ * - Errors are cloned into `StoicError` instances.
+ * - Known immutable types (e.g. Date, RegExp) are returned as their primitive representation (e.g. number, string).
+ *
+ * Circular references are not preserved: they are replaced with `undefined`,
+ * and a warning is logged including the current and original paths.
+ *
+ * Unsupported types (e.g., Promise, WeakMap, Function) will throw a `TypeError`.
+ *
+ * @function Stoic.create
+ * @param {*} source - The input value to sanitize and wrap.
+ * @param {WeakMap<object, string[]>} [_seen] - Internal use only for tracking circular references.
+ * @param {Array<string|number>} [_path] - Internal use only for current traversal path.
+ * @returns {*} A safe, deeply frozen version of the input.
+ * @throws {TypeError} If the input includes unsupported or unsafe types.
  *
  * @example
- * Stoic.isPlainObject({}); // true
- * Stoic.isPlainObject(new Date()); // false
+ * const frozen = Stoic.create({
+ *   name: 'Alice',
+ *   tags: ['admin'],
+ *   created: new Date(),
+ * });
+ *
+ * frozen.name = 'Bob'; // ❌ TypeError
  */
-Stoic.isPlainObject = (value) =>
-  value !== null &&
-  typeof value === 'object' &&
-  Object.getPrototypeOf(value) === Object.prototype;
+Stoic.create = function (source, _seen = new WeakMap(), _path = []) {
+  if (source === null || source === undefined) return source;
+  if (typeof source !== 'object') return source;
 
-/**
- * Recursively converts the given value into a deeply immutable structure.
- * - Arrays become `StoicArray`
- * - Plain objects become `StoicObject`
- * - Other values are returned as-is
- *
- * @function
- * @memberof Stoic
- * @param {*} sourceValue - The value to wrap.
- * @returns {*} A deeply frozen Stoic structure or primitive.
- *
- * @example
- * const frozen = Stoic.create({ foo: ['bar'] });
- * frozen.foo[0] = 'baz'; // ❌ TypeError
- */
-Stoic.create = (sourceValue) => {
-  if (Array.isArray(sourceValue)) return new StoicArray(sourceValue);
-  if (Stoic.isPlainObject(sourceValue)) return new StoicObject(sourceValue);
-  return sourceValue;
+  if (_seen.has(source)) {
+    const originalPath = _seen.get(source);
+    console.warn(
+      `Circular ref at path ${_path.join('.')} to ${originalPath.join('.')}`,
+    );
+    return void 0;
+  }
+
+  _seen.set(source, _path.slice());
+
+  const tag = Object.prototype.toString.call(source);
+
+  if (tag === '[object Date]') {
+    return source.valueOf();
+  }
+
+  if (tag === '[object RegExp]') {
+    return source.toString();
+  }
+
+  if (Array.isArray(source)) {
+    const proxy = [];
+    for (let i = 0; i < source.length; i++) {
+      proxy[i] = Stoic.create(source[i], _seen, _path.concat(i));
+    }
+    return StoicArray(proxy);
+  }
+
+  if (tag === '[object Object]') {
+    const proxy = Object.create(null);
+    for (const key in source) {
+      proxy[key] = Stoic.create(source[key], _seen, _path.concat(key));
+    }
+    return StoicObject(proxy);
+  }
+
+  if (tag === '[object Error]') {
+    return new StoicError(source);
+  }
+
+  if (
+    tag === '[object Boolean]' ||
+    tag === '[object Number]' ||
+    tag === '[object String]' ||
+    tag === '[object Symbol]' ||
+    tag === '[object BigInt]' ||
+    tag === '[object Date]'
+  ) {
+    return Object.valueOf(source);
+  }
+
+  throw new TypeError(`Stoic.create: Unsupported type ${tag}`);
 };
 
 /**
@@ -101,6 +151,63 @@ Stoic.delegateStoicMethods = function ({ target, source, mapping }) {
 
 Object.freeze(Stoic);
 
+// -- StoicError --
+
+/**
+ * Creates a deeply immutable, prototype-free error structure.
+ * Useful for safe logging or serialization without exposing prototype behavior.
+ *
+ * Retains `name`, `message`, `stack`, and optional `cause`, if available.
+ * Returns a structure that mimics a native error but is fully frozen and stripped of prototype.
+ *
+ * @constructor
+ * @param {Error} error - A native Error instance to wrap.
+ * @returns {StoicError} A frozen, non-prototype error structure.
+ * @throws {TypeError} If the input is not an `Error` instance.
+ *
+ * @example
+ * const err = new Error('Something went wrong');
+ * const frozenErr = new StoicError(err);
+ * console.log(frozenErr.stack); // Logs stack trace
+ */
+export function StoicError(error) {
+  if (Object.prototype.toString.call(error) !== '[object Error]') {
+    throw new TypeError('StoicError expects an error.');
+  }
+
+  const instance = Object.create(StoicError.prototype);
+  Object.defineProperty(instance, 'name', {
+    value: 'Stoic' + error.name,
+  });
+
+  Object.defineProperty(instance, 'message', {
+    value: error.message,
+  });
+
+  Object.defineProperty(instance, 'stack', {
+    value: error.stack,
+  });
+
+  if ('cause' in error) {
+    Object.defineProperty(instance, 'cause', {
+      value: Stoic.create(error.cause),
+    });
+  }
+
+  Object.freeze(instance);
+
+  return instance;
+}
+
+StoicError.prototype = Object.create(Stoic);
+
+Object.defineProperty(StoicObject.prototype, Symbol.toStringTag, {
+  value: 'StoicError',
+});
+
+Object.freeze(StoicError.prototype);
+Object.freeze(StoicError);
+
 // -- StoicObject --
 
 /**
@@ -119,7 +226,10 @@ Object.freeze(Stoic);
 export function StoicObject(source) {
   if (source instanceof StoicObject) return source;
 
-  if (Array.isArray(source) || !Stoic.isPlainObject(source)) {
+  if (
+    Array.isArray(source) ||
+    Object.prototype.toString.call(source) !== '[object Object]'
+  ) {
     throw new TypeError('StoicObject expects a plain object.');
   }
 
@@ -246,6 +356,18 @@ Object.freeze(StoicArray.prototype);
 Object.freeze(StoicArray);
 
 // -- Type Definitions --
+
+/**
+ * A deeply immutable, prototype-free error structure.
+ * Does not inherit from `Error.prototype`.
+ *
+ * @typedef {Object} StoicError
+ * @property {string} name - Error type name.
+ * @property {string} message - Brief error description.
+ * @property {string} stack - Error name and message with call stack.
+ * @property {string} [cause] - Error cause - what triggered the error.
+ * @property {string} [Symbol.toStringTag='StoicError'] - Custom string tag used by `Object.prototype.toString`.
+ */
 
 /**
  * A deeply immutable, prototype-free object structure.
