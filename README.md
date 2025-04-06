@@ -1,6 +1,4 @@
-# Stoic - Immutable pseudo-primitives
-
-:construction: **This library is still in EARLY DEVELOPMENT with missing features and maybe critical bugs.** :construction:
+# Stoic - Immutable pseudo-primitive structures
 
 A lightweight utility for creating deeply immutable, prototype-free data structures.
 Useful for schema definitions, safe config data, or readonly runtime state.
